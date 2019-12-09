@@ -1,5 +1,5 @@
-# KaggleCompetitions
-My kaggle competitions. Also see https://www.kaggle.com/weikai.
+# Kaggle Competitions
+My kaggle competitions. Also see my kaggle profile https://www.kaggle.com/weikai.
 
 Here are the websites of these competitions and my kernels: 
 
