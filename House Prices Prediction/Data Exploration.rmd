@@ -1,0 +1,171 @@
+---
+title: "Data Exploration"
+author: "Weikai Mao"
+date: "April 22, 2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(formattable)
+library(gridExtra)
+library(moments) # for skewness() func
+library(corrplot)
+```
+
+### 1. Overview of data
+
+```{r message=FALSE}
+
+train = read_csv('./house-prices-advanced-regression-techniques/train.csv') %>% select(-'Id') # delete the unneeded column 'Id'
+# train[, c('YearBuilt', 'YearRemodAdd', 'YrSold')] = sapply(train[, c('YearBuilt', 'YearRemodAdd', 'YrSold')], as.character)
+
+head(train)
+```
+
+#### (1) Dimension
+
+```{r}
+dim(train)
+```
+
+The house prices dataset has 1460 rows and 80 columns (features).  
+
+#### (2) Glimpse of data
+
+```{r}
+glimpse(train)
+```
+
+#### (3) Types of variables
+
+```{r}
+table(sapply(train, class))
+```
+
+#### (4) Missing values
+
+```{r}
+
+miss = train %>% 
+  sapply(is.na) %>% 
+  colSums() %>% 
+  sort(decreasing = TRUE)
+
+miss = (miss[miss > 0] / dim(train)[1]) %>% stack()
+miss$values = percent(miss$values)
+colnames(miss) = c('Proportion of missing data', 'Variables')
+
+miss %>% 
+  ggplot(data=., aes(y=`Proportion of missing data`, x=`Variables`)) + 
+  geom_bar(stat="identity") +
+  coord_flip()
+  
+```
+
+#### (5) Distribution of target variable (SalePrice)
+
+```{r fig.height=5, fig.width=10}
+
+Xtrain = train %>% select(-'SalePrice')
+Ytrain = train %>% select('SalePrice')
+
+p1 = ggplot(Ytrain) + 
+  geom_histogram(aes(x=SalePrice, y=..density..), position="identity", bins = 100) + 
+  geom_density(aes(x=SalePrice, y=..density..), size = 1) + 
+  xlab(paste('SalePrice', '\n', 'Skewness:', round(skewness(Ytrain)[[1]], 4)))
+
+p2 = ggplot(log(Ytrain)) + 
+  geom_histogram(aes(x=SalePrice, y=..density..), position="identity", bins = 100) + 
+  geom_density(aes(x=SalePrice, y=..density..), size = 1) + 
+  xlab(paste('log(SalePrice)', '\n', 'Skewness:', round(skewness(log(Ytrain))[[1]], 4)))
+
+grid.arrange(p1, p2, ncol=2)
+
+```
+
+
+```{r}
+
+ggplot(log(Ytrain)) + 
+  geom_histogram(aes(x=SalePrice, y=..density..), position="identity", bins = 100) + 
+  geom_density(aes(x=SalePrice, y=..density..), size = 1)
+
+```
+
+
+#### (6) Distribution of categrical variables
+
+```{r fig.height=40, fig.width=10}
+
+cat_names = colnames(Xtrain)[sapply(Xtrain, class) == "character"]
+p_cat = list()
+
+for (cat_var in cat_names){
+  data = train[, cat_var]
+  colnames(data) = 'temp_name'
+
+  p = ggplot(data = data, aes(x = `temp_name`)) + 
+    geom_bar() + 
+    labs(x = cat_var) +
+    coord_flip()
+  p_cat = c(p_cat, list(p))
+}
+
+do.call("grid.arrange", c(p_cat, ncol=3))
+
+```
+
+#### (7) Distribution of numeric variables
+
+```{r fig.height=40, fig.width=10, warning=FALSE}
+
+num_names = colnames(Xtrain)[sapply(Xtrain, class) == "numeric"]
+pp = list()
+
+for (num_var in num_names){
+  data = train[, num_var]
+  colnames(data) = 'temp_name'
+
+  p = ggplot(data = data, aes(x = `temp_name`)) + 
+    geom_line(stat = 'density') +
+    labs(x = num_var)
+  pp = c(pp, list(p))
+}
+
+do.call("grid.arrange", c(pp, ncol=3))
+
+```
+
+```{r}
+num_var = 'OpenPorchSF'
+data = log(1 + train[ , num_var])
+colnames(data) = 'temp_name'
+
+ggplot(data = data, aes(x = `temp_name`)) + 
+    geom_line(stat = 'density') +
+    labs(x = num_var)
+```
+
+#### Correlation matrix
+
+```{r fig.height=10, fig.width=10}
+
+all_numVar <- cbind(Xtrain[, num_names], Ytrain)
+cor_numVar <- cor(all_numVar, use="pairwise.complete.obs") # correlations of all numeric variables
+
+# sort on decreasing correlations with SalePrice      
+cor_sorted <- as.matrix(sort(cor_numVar[,'SalePrice'], decreasing = TRUE))
+# select only high corelations
+CorHigh <- names(which(apply(cor_sorted, 1, function(x) abs(x)>0.3)))
+cor_numVar <- cor_numVar[CorHigh, CorHigh]
+
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+```
